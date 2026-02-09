@@ -1,0 +1,85 @@
+# Claude-Mem Podman Compose
+#
+# Local-build variant for Podman. Builds images from source instead of pulling
+# from customable's private Forgejo registry.
+#
+# Usage:
+#   ./setup.sh                           # First-time setup (generates .env, builds images)
+#   podman-compose -f podman-compose.yml up -d    # Start services
+#   podman-compose -f podman-compose.yml logs -f   # View logs
+#   podman-compose -f podman-compose.yml down       # Stop services
+#
+# The host port is configurable via CLAUDE_MEM_HOST_PORT (default: 38888).
+# This lets you run alongside vanilla claude-mem on :37777 during transition.
+# To take over vanilla's port: set CLAUDE_MEM_HOST_PORT=37777 in .env and restart.
+#
+# Podman rootless: works out of the box. The bind mount at ~/.claude-mem/ is
+# owned by your UID, and the container runs as root inside the user namespace.
+
+services:
+  # ===========================================
+  # Backend Service
+  # ===========================================
+  # REST API, WebSocket Hub, Database, Web UI
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: claude-mem-backend:local
+    container_name: claude-mem-backend
+    ports:
+      - "${CLAUDE_MEM_HOST_PORT:-38888}:37777"
+    volumes:
+      # Bind mount for host-accessible SQLite database
+      - ${CLAUDE_MEM_DATA_DIR:-~/.claude-mem}:/data
+    environment:
+      - CLAUDE_MEM_DATA_DIR=/data
+      - CLAUDE_MEM_DATABASE_PATH=/data/claude-mem.db
+      - CLAUDE_MEM_BACKEND_PORT=37777
+      - CLAUDE_MEM_BACKEND_BIND=0.0.0.0
+      - CLAUDE_MEM_WORKER_AUTH_TOKEN=${CLAUDE_MEM_WORKER_AUTH_TOKEN:-}
+      - CLAUDE_MEM_REMOTE_TOKEN=${CLAUDE_MEM_REMOTE_TOKEN:-}
+      - CLAUDE_MEM_LOG_LEVEL=${CLAUDE_MEM_LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:37777/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - claude-mem-net
+
+  # ===========================================
+  # Worker Service
+  # ===========================================
+  # AI processing worker (connects to backend via WebSocket)
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: claude-mem-worker:local
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - CLAUDE_MEM_BACKEND_HOST=backend
+      - CLAUDE_MEM_BACKEND_PORT=37777
+      - CLAUDE_MEM_WORKER_AUTH_TOKEN=${CLAUDE_MEM_WORKER_AUTH_TOKEN:-}
+      - CLAUDE_MEM_AI_PROVIDER=${CLAUDE_MEM_AI_PROVIDER:-openai}
+      - CLAUDE_MEM_MISTRAL_API_KEY=${CLAUDE_MEM_MISTRAL_API_KEY:-}
+      - CLAUDE_MEM_GEMINI_API_KEY=${CLAUDE_MEM_GEMINI_API_KEY:-}
+      - CLAUDE_MEM_OPENROUTER_API_KEY=${CLAUDE_MEM_OPENROUTER_API_KEY:-}
+      - CLAUDE_MEM_OPENAI_API_KEY=${CLAUDE_MEM_OPENAI_API_KEY:-}
+      - CLAUDE_MEM_ANTHROPIC_API_KEY=${CLAUDE_MEM_ANTHROPIC_API_KEY:-}
+      - CLAUDE_MEM_LOG_LEVEL=${CLAUDE_MEM_LOG_LEVEL:-info}
+    restart: unless-stopped
+    networks:
+      - claude-mem-net
+
+# ===========================================
+# Networks
+# ===========================================
+networks:
+  claude-mem-net:
+    driver: bridge
