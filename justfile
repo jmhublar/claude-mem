@@ -113,6 +113,16 @@ ps:
 build-images:
     {{ compose }} build
 
+# ─── Proxy (LAN access) ───────────────────────────────
+
+# Start Caddy reverse proxy for LAN access (0.0.0.0:38889 → localhost:38888)
+proxy:
+    caddy start --config Caddyfile
+
+# Stop Caddy reverse proxy
+proxy-stop:
+    caddy stop
+
 # ─── Housekeeping ─────────────────────────────────────
 
 # Remove all build artifacts and node_modules

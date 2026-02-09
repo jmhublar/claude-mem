@@ -1,0 +1,11 @@
+# Reverse proxy for LAN access to containerized claude-mem
+#
+# Caddy listens on 0.0.0.0:38889 (all interfaces) and proxies to
+# the Podman-forwarded backend on localhost:38888.
+#
+# Start:  just proxy
+# Stop:   just proxy-stop
+
+:38889 {
+	reverse_proxy localhost:38888
+}
