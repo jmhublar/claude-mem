@@ -42,5 +42,14 @@
     "pnpm": ">=10.28.1"
   },
   "packageManager": "pnpm@10.28.1",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "better-sqlite3",
+      "esbuild",
+      "protobufjs",
+      "sharp"
+    ]
+  },
   "version": "3.0.4"
 }

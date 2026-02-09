@@ -3,7 +3,12 @@
 # Usage: just <recipe>        Run a recipe
 #        just --list          Show all available recipes
 #        just                  Same as just --list (default)
+#
+# Requires: fnm (Fast Node Manager) for automatic Node version management.
+# All pnpm recipes run under the correct Node version via `fnm exec`.
 
+node_version := "24.13.0"
+fnm := "fnm exec --using=" + node_version
 compose := "podman-compose -f podman-compose.yml"
 
 # ─── Default ──────────────────────────────────────────
@@ -12,67 +17,84 @@ compose := "podman-compose -f podman-compose.yml"
 default:
     @just --list
 
+# ─── Node Environment ────────────────────────────────
+
+# Install required Node version via fnm (if not already present)
+ensure-node:
+    #!/usr/bin/env bash
+    if ! command -v fnm &>/dev/null; then
+        echo "Error: fnm is not installed. Install via: brew install fnm"
+        exit 1
+    fi
+    if ! fnm ls | grep -q "v{{ node_version }}"; then
+        echo "Installing Node {{ node_version }} via fnm..."
+        fnm install {{ node_version }}
+    fi
+    # Ensure corepack is enabled so pnpm matches packageManager field
+    {{ fnm }} corepack enable 2>/dev/null || true
+    echo "Node $({{ fnm }} node --version), pnpm $({{ fnm }} pnpm --version) ready"
+
 # ─── Build ────────────────────────────────────────────
 
 # Build all packages
-build:
-    pnpm -r build
+build: ensure-node
+    {{ fnm }} pnpm -r build
 
 # Build and bundle the Claude Code plugin
-build-plugin:
-    pnpm build:plugin
+build-plugin: ensure-node
+    {{ fnm }} pnpm build:plugin
 
 # Build shared type definitions
-build-types:
-    pnpm build:types
+build-types: ensure-node
+    {{ fnm }} pnpm build:types
 
 # Build the backend server
-build-backend:
-    pnpm build:backend
+build-backend: ensure-node
+    {{ fnm }} pnpm build:backend
 
 # Build the worker service
-build-worker:
-    pnpm build:worker
+build-worker: ensure-node
+    {{ fnm }} pnpm build:worker
 
 # Build the web UI
-build-ui:
-    pnpm build:ui
+build-ui: ensure-node
+    {{ fnm }} pnpm build:ui
 
 # ─── Dev ──────────────────────────────────────────────
 
 # Build plugin and sync to marketplace
-dev:
-    pnpm dev
+dev: ensure-node
+    {{ fnm }} pnpm dev
 
 # Kill, reinstall, rebuild, and restart dev services
-dev-restart:
-    pnpm dev:restart
+dev-restart: ensure-node
+    {{ fnm }} pnpm dev:restart
 
 # Start Vite dev server for UI
-dev-ui:
-    pnpm dev:ui
+dev-ui: ensure-node
+    {{ fnm }} pnpm dev:ui
 
 # Sync plugin to Claude Code marketplace directories
-sync:
-    pnpm sync-marketplace
+sync: ensure-node
+    {{ fnm }} pnpm sync-marketplace
 
 # ─── Quality ──────────────────────────────────────────
 
 # Run tests (vitest)
-test:
-    pnpm test
+test: ensure-node
+    {{ fnm }} pnpm test
 
 # Run tests in watch mode
-test-watch:
-    pnpm test:watch
+test-watch: ensure-node
+    {{ fnm }} pnpm test:watch
 
 # Run tests with coverage
-test-coverage:
-    pnpm test:coverage
+test-coverage: ensure-node
+    {{ fnm }} pnpm test:coverage
 
 # Run TypeScript type checking
-typecheck:
-    pnpm typecheck
+typecheck: ensure-node
+    {{ fnm }} pnpm typecheck
 
 # ─── Podman (containers) ─────────────────────────────
 
@@ -247,9 +269,9 @@ proxy-stop:
 # ─── Housekeeping ─────────────────────────────────────
 
 # Remove all build artifacts and node_modules
-clean:
-    pnpm -r clean && rm -rf node_modules
+clean: ensure-node
+    {{ fnm }} pnpm -r clean && rm -rf node_modules
 
 # Install dependencies
-install:
-    pnpm install
+install: ensure-node
+    {{ fnm }} pnpm install
