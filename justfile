@@ -102,6 +102,24 @@ typecheck: ensure-node
 setup:
     ./setup.sh
 
+# Show the remote access token (for configuring external harnesses)
+show-token:
+    #!/usr/bin/env bash
+    if [ ! -f .env ]; then
+        echo "No .env file. Run: just setup"
+        exit 1
+    fi
+    token=$(grep '^CLAUDE_MEM_REMOTE_TOKEN=' .env | cut -d= -f2)
+    if [ -z "$token" ]; then
+        echo "CLAUDE_MEM_REMOTE_TOKEN not set in .env"
+        exit 1
+    fi
+    echo "CLAUDE_MEM_REMOTE_TOKEN=$token"
+    echo ""
+    echo "Use this token to authenticate external clients (OpenCode, Claude Code, etc.)"
+    echo "Set it as an environment variable or in your harness config."
+    echo "See: docs/harness-integration.md"
+
 # Start containers in the background
 up:
     {{ compose }} up -d
