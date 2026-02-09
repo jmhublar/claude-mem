@@ -109,6 +109,9 @@ export CLAUDE_MEM_URL=http://localhost:38888
 export CLAUDE_MEM_REMOTE_TOKEN=<your-token-from-.env>
 ```
 
+If you use direnv for OpenCode, put these exports in your workspace `.envrc` and
+run `direnv allow` before starting OpenCode.
+
 The plugin automatically captures session lifecycle, tool executions, compaction events,
 and injects memory context into the system prompt.
 
@@ -134,6 +137,13 @@ Add claude-mem as an MCP server in OpenCode's config:
 
 This gives OpenCode agents access to claude-mem's search and management tools, but
 does not capture session lifecycle events (use the plugin for that).
+
+#### Important notes
+
+- The Claude Code plugin hooks in `~/.claude/settings.json` do not run in OpenCode.
+- MCP-only wiring will not create sessions in the web UI. If you want OpenCode
+  sessions to appear, install `@claude-mem/opencode-plugin` and set
+  `CLAUDE_MEM_URL` and `CLAUDE_MEM_REMOTE_TOKEN` in the OpenCode process env.
 
 ## 3. Any Harness (Generic)
 

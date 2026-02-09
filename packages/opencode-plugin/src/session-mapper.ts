@@ -12,6 +12,7 @@ export interface SessionInfo {
   project: string;
   directory: string;
   createdAt: number;
+  promptCounter: number;
 }
 
 export class SessionMapper {
@@ -26,6 +27,7 @@ export class SessionMapper {
       project,
       directory,
       createdAt: Date.now(),
+      promptCounter: 0,
     });
   }
 
@@ -34,6 +36,18 @@ export class SessionMapper {
    */
   get(openCodeId: string): SessionInfo | undefined {
     return this.sessions.get(openCodeId);
+  }
+
+  /**
+   * Increment and return the next prompt number for a session.
+   */
+  incrementPrompt(openCodeId: string): number {
+    const info = this.sessions.get(openCodeId);
+    if (!info) {
+      return 1;
+    }
+    info.promptCounter += 1;
+    return info.promptCounter;
   }
 
   /**

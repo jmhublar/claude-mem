@@ -179,12 +179,16 @@ export const ClaudeMemPlugin: Plugin = async (pluginInput) => {
 
     // =====================================================================
     // Hook 2: User prompt capture via chat.message
-    // Maps to: user-prompt-submit
+    // Maps to: prompt
     // =====================================================================
     'chat.message': async (input, output) => {
       // The user message is in output.message; input has sessionID
       const sessionID = input.sessionID;
       if (!sessionID) return;
+
+      if (!sessions.get(sessionID)) {
+        sessions.register(sessionID, project, pluginInput.directory);
+      }
 
       // Extract text from parts
       let text = '';
@@ -202,14 +206,14 @@ export const ClaudeMemPlugin: Plugin = async (pluginInput) => {
       }
 
       // Urgency detection (CAPSLOCK)
-      const urgent = isUrgent(text);
+      isUrgent(text);
 
-      void client.post('/api/hooks/user-prompt-submit', {
+      const promptNumber = sessions.incrementPrompt(sessionID);
+
+      void client.post('/api/hooks/prompt', {
         sessionId: sessionID,
-        project,
-        prompt: text,
-        urgent,
-        harness: 'opencode',
+        promptNumber,
+        promptText: text,
       });
     },
 
