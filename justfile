@@ -113,6 +113,119 @@ ps:
 build-images:
     {{ compose }} build
 
+# ─── Data ─────────────────────────────────────────────
+
+# Show configured data directory and database size
+data-info:
+    #!/usr/bin/env bash
+    dir="${CLAUDE_MEM_DATA_DIR:-$HOME/.claude-mem}"
+    if [ -f .env ]; then
+        env_dir=$(grep '^CLAUDE_MEM_DATA_DIR=' .env | cut -d= -f2)
+        [ -n "$env_dir" ] && dir="$env_dir"
+    fi
+    echo "Data directory: $dir"
+    if [ -f "$dir/claude-mem.db" ]; then
+        echo "Database size:  $(du -sh "$dir/claude-mem.db" | cut -f1)"
+        echo "Total size:     $(du -sh "$dir" | cut -f1)"
+        ls -lh "$dir/"
+    else
+        echo "No database found at $dir/claude-mem.db"
+    fi
+
+# Clone existing data to a test directory for parallel testing
+data-clone target="$HOME/.claude-mem-test":
+    #!/usr/bin/env bash
+    src="${CLAUDE_MEM_DATA_DIR:-$HOME/.claude-mem}"
+    target="{{ target }}"
+    if [ ! -d "$src" ]; then
+        echo "Source directory not found: $src"
+        exit 1
+    fi
+    if [ -d "$target" ]; then
+        echo "Target already exists: $target"
+        echo "Remove it first with: just data-rm {{ target }}"
+        exit 1
+    fi
+    echo "Cloning $src → $target ..."
+    cp -R "$src" "$target"
+    echo "Done. Update .env to use the clone:"
+    echo "  CLAUDE_MEM_DATA_DIR=$target"
+
+# Back up the database with a timestamp
+data-backup:
+    #!/usr/bin/env bash
+    dir="${CLAUDE_MEM_DATA_DIR:-$HOME/.claude-mem}"
+    if [ -f .env ]; then
+        env_dir=$(grep '^CLAUDE_MEM_DATA_DIR=' .env | cut -d= -f2)
+        [ -n "$env_dir" ] && dir="$env_dir"
+    fi
+    db="$dir/claude-mem.db"
+    if [ ! -f "$db" ]; then
+        echo "No database at $db"
+        exit 1
+    fi
+    ts=$(date +%Y%m%d-%H%M%S)
+    backup="$dir/claude-mem.db.backup-$ts"
+    echo "Backing up $db → $backup ..."
+    sqlite3 "$db" ".backup '$backup'"
+    echo "Done. Backup: $backup ($(du -sh "$backup" | cut -f1))"
+
+# List existing backups
+data-backups:
+    #!/usr/bin/env bash
+    dir="${CLAUDE_MEM_DATA_DIR:-$HOME/.claude-mem}"
+    if [ -f .env ]; then
+        env_dir=$(grep '^CLAUDE_MEM_DATA_DIR=' .env | cut -d= -f2)
+        [ -n "$env_dir" ] && dir="$env_dir"
+    fi
+    echo "Backups in $dir:"
+    ls -lh "$dir"/claude-mem.db.backup-* 2>/dev/null || echo "  (none)"
+
+# Restore database from a backup file
+data-restore backup:
+    #!/usr/bin/env bash
+    dir="${CLAUDE_MEM_DATA_DIR:-$HOME/.claude-mem}"
+    if [ -f .env ]; then
+        env_dir=$(grep '^CLAUDE_MEM_DATA_DIR=' .env | cut -d= -f2)
+        [ -n "$env_dir" ] && dir="$env_dir"
+    fi
+    db="$dir/claude-mem.db"
+    backup="{{ backup }}"
+    if [ ! -f "$backup" ]; then
+        echo "Backup file not found: $backup"
+        echo "Available backups:"
+        ls -1 "$dir"/claude-mem.db.backup-* 2>/dev/null || echo "  (none)"
+        exit 1
+    fi
+    echo "Restoring $backup → $db ..."
+    echo "WARNING: This will overwrite the current database."
+    read -rp "Continue? [y/N] " confirm
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+        cp "$backup" "$db"
+        rm -f "$db-shm" "$db-wal"
+        echo "Done. Restart containers: just restart"
+    else
+        echo "Aborted."
+    fi
+
+# Remove a cloned test data directory
+data-rm target="$HOME/.claude-mem-test":
+    #!/usr/bin/env bash
+    target="{{ target }}"
+    if [ ! -d "$target" ]; then
+        echo "Directory not found: $target"
+        exit 1
+    fi
+    echo "Will remove: $target"
+    ls -lh "$target/"
+    read -rp "Continue? [y/N] " confirm
+    if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+        rm -rf "$target"
+        echo "Removed."
+    else
+        echo "Aborted."
+    fi
+
 # ─── Proxy (LAN access) ───────────────────────────────
 
 # Start Caddy reverse proxy for LAN access (0.0.0.0:38889 → localhost:38888)
