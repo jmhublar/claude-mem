@@ -3,9 +3,14 @@
 # Caddy listens on 0.0.0.0:38889 (all interfaces) and proxies to
 # the Podman-forwarded backend on localhost:38888.
 #
+# The auth header is injected so LAN clients don't need the token.
+# Set CLAUDE_MEM_REMOTE_TOKEN in your environment before starting.
+#
 # Start:  just proxy
 # Stop:   just proxy-stop
 
 :38889 {
-	reverse_proxy localhost:38888
+	reverse_proxy localhost:38888 {
+		header_up Authorization "Bearer {env.CLAUDE_MEM_REMOTE_TOKEN}"
+	}
 }

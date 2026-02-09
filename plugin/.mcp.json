@@ -2,7 +2,12 @@
   "mcpServers": {
     "mcp-search": {
       "type": "stdio",
-      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/mcp-server.cjs"
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/mcp-server.cjs",
+      "env": {
+        "CLAUDE_MEM_REMOTE_MODE": "true",
+        "CLAUDE_MEM_REMOTE_URL": "http://127.0.0.1:38888",
+        "CLAUDE_MEM_REMOTE_TOKEN": "${CLAUDE_MEM_REMOTE_TOKEN}"
+      }
     }
   }
 }

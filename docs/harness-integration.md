@@ -26,49 +26,65 @@ Connect any AI coding harness to a containerized claude-mem backend.
 
 Claude Code connects via the MCP server script bundled in the plugin package.
 
-### Option A: Use the built-in plugin (recommended)
+### Step 1: Build and sync the plugin
 
 The `plugin/` directory contains the full Claude Code plugin with hooks and MCP server.
 
 ```bash
-# Build the plugin
-pnpm build:plugin && pnpm sync-marketplace
+just build-plugin && just sync
 ```
 
-This installs the plugin to Claude Code's marketplace directory. The plugin's hooks
-talk to the backend at the URL configured in `~/.claude-mem/settings.json`.
+This syncs the plugin to `~/.claude/plugins/marketplaces/customable/`. The hooks
+will fire automatically on session start, tool use, and session end.
 
-### Option B: Point an existing MCP server at the container
+### Step 2: Register the MCP server via CLI
 
-If you already have vanilla claude-mem installed as an MCP server, reconfigure it
-to point at the containerized backend:
+> **Important**: Claude Code CLI does **not** read `.mcp.json` files from plugin
+> directories. The plugin's hooks work, but the MCP server (which provides search
+> and management tools) must be registered separately.
 
-In `~/.claude/settings.json` or your project's `.mcp.json`:
+```bash
+claude mcp add claude-mem \
+  --transport stdio \
+  --scope user \
+  --env CLAUDE_MEM_REMOTE_MODE=true \
+  --env CLAUDE_MEM_REMOTE_URL=http://127.0.0.1:38888 \
+  --env "CLAUDE_MEM_REMOTE_TOKEN=$CLAUDE_MEM_REMOTE_TOKEN" \
+  -- node ~/.claude/plugins/marketplaces/customable/scripts/mcp-server.cjs
+```
+
+Verify: `claude mcp list | grep claude-mem` should show `✓ Connected`.
+
+### Step 3: Set the auth token
+
+The hooks need `CLAUDE_MEM_REMOTE_TOKEN` in the environment. Use direnv:
+
+```bash
+# In your project .envrc:
+export CLAUDE_MEM_REMOTE_TOKEN=<token-from-.env>
+direnv allow .
+```
+
+### Step 4: Enable the plugin
+
+In `~/.claude/settings.json`, ensure the plugin is enabled:
 
 ```json
 {
-  "mcpServers": {
-    "claude-mem": {
-      "command": "node",
-      "args": ["/path/to/repos/claude-mem/plugin/dist/mcp-server.cjs"],
-      "env": {
-        "CLAUDE_MEM_BACKEND_HOST": "127.0.0.1",
-        "CLAUDE_MEM_BACKEND_PORT": "38888",
-        "CLAUDE_MEM_REMOTE_TOKEN": "<your-token-from-.env>"
-      }
-    }
+  "enabledPlugins": {
+    "claude-mem@customable": true
   }
 }
 ```
 
-### Transition strategy
+### Migrating from thedotmack plugin
 
-During transition, run both side by side:
-- Vanilla claude-mem on `:37777` (existing setup)
-- Containerized fork on `:38888` (new setup)
+If you previously had the `thedotmack/claude-mem` plugin installed, you need to
+fully remove it — otherwise both plugins will conflict on the `mcp-search` server
+name, and the old one will auto-reinstall on every Claude Code restart.
 
-When ready to switch, set `CLAUDE_MEM_HOST_PORT=37777` in `.env` and restart.
-Stop vanilla claude-mem, and the containerized version takes over its port.
+See [Deployment Guide: Removing the Old Plugin](deployment.md#removing-the-old-plugin)
+for the full procedure.
 
 ## 2. OpenCode
 

@@ -8,34 +8,33 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy package files
+# Copy workspace config and ALL package.json files (so pnpm fetches every dep upfront)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/types/package.json packages/types/
 COPY packages/shared/package.json packages/shared/
 COPY packages/database/package.json packages/database/
 COPY packages/backend/package.json packages/backend/
 COPY packages/ui/package.json packages/ui/
+COPY packages/hooks/package.json packages/hooks/
+COPY packages/worker/package.json packages/worker/
+COPY packages/worker-hub/package.json packages/worker-hub/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy source files
+# Copy ALL source files at once, then rebuild workspace links
 COPY tsconfig.base.json ./
-COPY packages/types packages/types
-COPY packages/shared packages/shared
-COPY packages/database packages/database
-COPY packages/backend packages/backend
-COPY packages/ui packages/ui
+COPY packages/ packages/
+RUN pnpm install --frozen-lockfile --offline
 
-# Build all packages
-RUN pnpm --filter @claude-mem/types build
-RUN pnpm --filter @claude-mem/shared build
-RUN pnpm --filter @claude-mem/database build
-RUN pnpm --filter @claude-mem/backend build
-RUN pnpm --filter @claude-mem/ui build
+# Build all packages (pnpm -r handles dependency ordering)
+RUN pnpm -r --filter @claude-mem/types --filter @claude-mem/shared --filter @claude-mem/database --filter @claude-mem/backend --filter @claude-mem/ui build
 
 # Production image
 FROM node:24.13.0-slim
+
+# Install build tools, compile better-sqlite3, then remove build tools
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Watchtower auto-update labels (Issue #214)
 ARG WATCHTOWER_ENABLE=false
@@ -64,6 +63,12 @@ COPY --from=builder /app/packages/types/node_modules packages/types/node_modules
 COPY --from=builder /app/packages/shared/node_modules packages/shared/node_modules
 COPY --from=builder /app/packages/database/node_modules packages/database/node_modules
 COPY --from=builder /app/packages/backend/node_modules packages/backend/node_modules
+
+# Build better-sqlite3 native bindings for linux-arm64
+RUN cd node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3 && npm run install
+
+# Remove build tools to keep image smaller
+RUN apt-get purge -y python3 make g++ && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Create data directory
 RUN mkdir -p /data

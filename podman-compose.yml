@@ -31,7 +31,7 @@ services:
       - "${CLAUDE_MEM_HOST_PORT:-38888}:37777"
     volumes:
       # Bind mount for host-accessible SQLite database
-      - ${CLAUDE_MEM_DATA_DIR:-~/.claude-mem}:/data
+      - ${CLAUDE_MEM_DATA_DIR:-.claude-mem-data}:/data
     environment:
       - CLAUDE_MEM_DATA_DIR=/data
       - CLAUDE_MEM_DATABASE_PATH=/data/claude-mem.db
@@ -62,17 +62,35 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+      qdrant:
+        condition: service_started
     environment:
       - CLAUDE_MEM_BACKEND_HOST=backend
       - CLAUDE_MEM_BACKEND_PORT=37777
       - CLAUDE_MEM_WORKER_AUTH_TOKEN=${CLAUDE_MEM_WORKER_AUTH_TOKEN:-}
       - CLAUDE_MEM_AI_PROVIDER=${CLAUDE_MEM_AI_PROVIDER:-openai}
+      - CLAUDE_MEM_VECTOR_DB=qdrant
+      - CLAUDE_MEM_EMBEDDING_PROVIDER=openai
+      - QDRANT_URL=http://qdrant:6333
       - CLAUDE_MEM_MISTRAL_API_KEY=${CLAUDE_MEM_MISTRAL_API_KEY:-}
       - CLAUDE_MEM_GEMINI_API_KEY=${CLAUDE_MEM_GEMINI_API_KEY:-}
       - CLAUDE_MEM_OPENROUTER_API_KEY=${CLAUDE_MEM_OPENROUTER_API_KEY:-}
       - CLAUDE_MEM_OPENAI_API_KEY=${CLAUDE_MEM_OPENAI_API_KEY:-}
       - CLAUDE_MEM_ANTHROPIC_API_KEY=${CLAUDE_MEM_ANTHROPIC_API_KEY:-}
       - CLAUDE_MEM_LOG_LEVEL=${CLAUDE_MEM_LOG_LEVEL:-info}
+      - WORKER_CAPABILITIES=observation:sdk,summarize:sdk,compression:anthropic,embedding:openai,qdrant:sync,semantic:search,context:generate,claudemd:generate
+    restart: unless-stopped
+    networks:
+      - claude-mem-net
+
+  # ===========================================
+  # Qdrant Vector Database
+  # ===========================================
+  # Stores embeddings for semantic search
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - ${CLAUDE_MEM_DATA_DIR:-.claude-mem-data}/qdrant:/qdrant/storage
     restart: unless-stopped
     networks:
       - claude-mem-net

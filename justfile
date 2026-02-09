@@ -7,6 +7,8 @@
 # Requires: fnm (Fast Node Manager) for automatic Node version management.
 # All pnpm recipes run under the correct Node version via `fnm exec`.
 
+set dotenv-load
+
 node_version := "24.13.0"
 fnm := "fnm exec --using=" + node_version
 compose := "podman-compose -f podman-compose.yml"
