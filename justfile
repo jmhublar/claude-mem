@@ -95,15 +95,23 @@ logs:
 # Restart containers (down + up)
 restart: down up
 
-# Check backend health endpoint
+# Check backend health endpoint (uses CLAUDE_MEM_REMOTE_TOKEN from .env)
 health:
     #!/usr/bin/env bash
     port="${CLAUDE_MEM_HOST_PORT:-38888}"
+    token=""
     if [ -f .env ]; then
         env_port=$(grep '^CLAUDE_MEM_HOST_PORT=' .env | cut -d= -f2)
         [ -n "$env_port" ] && port="$env_port"
+        token=$(grep '^CLAUDE_MEM_REMOTE_TOKEN=' .env | cut -d= -f2)
     fi
-    curl -sf "http://localhost:${port}/api/health" && echo || echo "Health check failed (port $port)"
+    auth_header=""
+    [ -n "$token" ] && auth_header="-H Authorization:\ Bearer\ $token"
+    if [ -n "$token" ]; then
+        curl -sf -H "Authorization: Bearer $token" "http://localhost:${port}/api/health" | python3 -m json.tool
+    else
+        curl -sf "http://localhost:${port}/api/health" | python3 -m json.tool
+    fi || echo "Health check failed (port $port)"
 
 # Show container status
 ps:
